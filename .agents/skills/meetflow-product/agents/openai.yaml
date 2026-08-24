@@ -1,0 +1,4 @@
+interface:
+  display_name: "MeetFlow Product"
+  short_description: "Build and maintain the MeetFlow meeting workflow"
+  default_prompt: "Use $meetflow-product to implement this MeetFlow change while preserving its workflow, Thai writing style, and authorization rules."

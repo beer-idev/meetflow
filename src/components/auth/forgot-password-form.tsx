@@ -1,0 +1,14 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { ArrowLeft, CheckCircle2, LoaderCircle, Mail } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
+
+export function ForgotPasswordForm() {
+  const [email, setEmail] = useState(""); const [loading, setLoading] = useState(false); const [sent, setSent] = useState(false); const [error, setError] = useState("");
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setError(""); if (!email.includes("@")) { setError("กรุณาระบุอีเมลให้ถูกต้อง"); return; } setLoading(true); const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)); if (configured) { const { error: authError } = await createClient().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password` }); if (authError) { setError("ไม่สามารถส่งอีเมลได้ กรุณาลองใหม่"); setLoading(false); return; } } else { await new Promise((resolve) => window.setTimeout(resolve, 600)); } setLoading(false); setSent(true); };
+  if (sent) return <div className="text-center"><span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#e6f6ef] text-[#278064]"><CheckCircle2 className="h-6 w-6" /></span><h1 className="mt-5 text-2xl font-bold text-[#17243c]">ตรวจสอบอีเมลของคุณ</h1><p className="mt-2 text-sm leading-6 text-[#748198]">เราได้ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่<br /><b className="text-[#344159]">{email}</b></p><Button asChild className="mt-6 w-full"><Link href="/login">กลับไปหน้าเข้าสู่ระบบ</Link></Button></div>;
+  return <><Link href="/login" className="inline-flex items-center gap-1.5 text-sm font-medium text-[#68768d] hover:text-[#2563eb]"><ArrowLeft className="h-4 w-4" />กลับไปหน้าเข้าสู่ระบบ</Link><h1 className="mt-6 text-[28px] font-bold text-[#17243c]">ลืมรหัสผ่าน</h1><p className="mt-2 text-sm leading-6 text-[#748198]">กรอกอีเมลที่ใช้เข้าสู่ระบบ เราจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่</p><form onSubmit={submit} className="mt-7 space-y-4"><label className="block"><span className="mb-2 block text-sm font-semibold text-[#344159]">อีเมล</span><span className="relative block"><Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8d99ab]" /><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="h-11 w-full rounded-lg border border-[#d8dfeb] pl-10 pr-3 text-sm outline-none focus:border-[#77a2ef] focus:ring-3 focus:ring-[#e5edff]" placeholder="name@organization.go.th" /></span>{error && <span className="mt-1.5 block text-xs text-red-600">{error}</span>}</label><Button className="w-full" disabled={loading}>{loading && <LoaderCircle className="h-4 w-4 animate-spin" />}{loading ? "กำลังส่งอีเมล" : "ส่งลิงก์ตั้งรหัสผ่านใหม่"}</Button></form></>;
+}

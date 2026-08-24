@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+:root { --background: #f6f8fc; --foreground: #172033; --primary: #2563eb; --primary-hover: #1d4ed8; --navy: #10213d; --line: #e4e9f2; }
+@theme inline { --color-background: var(--background); --color-foreground: var(--foreground); --color-brand: var(--primary); --color-brand-dark: var(--primary-hover); --font-sans: "Noto Sans Thai", "Leelawadee UI", Tahoma, Arial, sans-serif; }
+* { box-sizing: border-box; }
+html { background: var(--background); }
+body { margin: 0; background: var(--background); color: var(--foreground); font-family: "Noto Sans Thai", "Leelawadee UI", Tahoma, Arial, sans-serif; }
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+::selection { background: #dbeafe; color: #1e3a8a; }
+.soft-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+.editor-content .tiptap { min-height: 340px; outline: none; line-height: 1.9; color: #26324a; }
+.editor-content .tiptap h2 { margin: 1.4rem 0 .55rem; font-size: 1.14rem; font-weight: 700; color: #16233b; }
+.editor-content .tiptap p { margin: .55rem 0; }
+.editor-content .tiptap ul { list-style: disc; padding-left: 1.5rem; }
+.editor-content .tiptap ol { list-style: decimal; padding-left: 1.5rem; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.toast-in { animation: toast-in .2s ease-out; }

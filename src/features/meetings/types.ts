@@ -1,0 +1,3 @@
+export type MeetingStatus = "scheduled" | "in_progress" | "minutes" | "review" | "published" | "cancelled";
+export type MeetingRecord = { id: string; title: string; type: "คณะกรรมการ" | "ประชุมภายใน" | "โครงการ" | "ประชุมภายนอก"; department: string; date: string; time: string; endTime: string; location: string; participantCount: number; status: MeetingStatus; owner: string; };
+export type DocumentRecord = { id: string; name: string; meeting: string; category: "รายงานการประชุม" | "ระเบียบวาระ" | "เอกสารประกอบ" | "หนังสือเชิญ"; department: string; updatedAt: string; size: string; extension: "PDF" | "DOCX" | "XLSX"; };
