@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "@/lib/supabase/server";
 import type { MeetingStatus } from "@/features/meetings/types";
+import { cache } from "react";
 
 export type AppContext = {
   userId: string;
@@ -39,6 +40,7 @@ export type MeetingListItem = {
   status: MeetingStatus;
   owner: string;
 };
+export type MeetingOption = Pick<MeetingListItem, "id" | "title">;
 
 export type AgendaView = {
   id: string;
@@ -106,14 +108,27 @@ export type WorkspaceData = {
   auditLogs: AuditView[];
 };
 
+export type ShellData = {
+  context: AppContext | null;
+  documentCount: number;
+};
+
 type AnySupabase = Awaited<ReturnType<typeof createClient>> & {
   from: (table: string) => any;
   rpc: (fn: string, args?: Record<string, unknown>) => any;
 };
 
-export async function getWorkspaceData(): Promise<WorkspaceData> {
+// React's request-scoped cache lets the persistent workspace layout and the
+// active page share one Supabase client/session lookup during navigation.
+// This avoids repeating auth + membership + profile queries for every segment.
+const getRequestContext = cache(async () => {
   const supabase = (await createClient()) as AnySupabase;
   const context = await getAppContext(supabase);
+  return { supabase, context };
+});
+
+export async function getWorkspaceData(): Promise<WorkspaceData> {
+  const { supabase, context } = await getRequestContext();
 
   if (!context) {
     return { context: null, meetings: [], documents: [], reports: [], departments: [], members: [], auditLogs: [] };
@@ -131,9 +146,91 @@ export async function getWorkspaceData(): Promise<WorkspaceData> {
   return { context, meetings, documents, reports, departments, members, auditLogs };
 }
 
+/**
+ * Data needed by the persistent application shell only. Keeping this small is
+ * important: the shell is rendered for every workspace route and should not
+ * fetch reports, meetings, audit records, or file metadata just to show the
+ * sidebar.
+ */
+export async function getShellData(): Promise<ShellData> {
+  const { supabase, context } = await getRequestContext();
+  if (!context) return { context: null, documentCount: 0 };
+
+  const { count } = await supabase
+    .from("attachments")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", context.organizationId);
+
+  return { context, documentCount: count ?? 0 };
+}
+
+export async function getDashboardData(): Promise<WorkspaceData> {
+  const { supabase, context } = await getRequestContext();
+  if (!context) return emptyWorkspaceData();
+  const [meetings, reports, documents, members] = await Promise.all([
+    getMeetings(supabase, context.organizationId),
+    getReports(supabase, context.organizationId),
+    getDocuments(supabase, context.organizationId),
+    getMembers(supabase, context.organizationId),
+  ]);
+  return { context, meetings, reports, documents, members, departments: [], auditLogs: [] };
+}
+
+export async function getMeetingsPageData(): Promise<{ context: AppContext | null; meetings: MeetingListItem[]; departments: DepartmentOption[] }> {
+  const { supabase, context } = await getRequestContext();
+  if (!context) return { context: null, meetings: [], departments: [] };
+  const [meetings, departments] = await Promise.all([
+    getMeetings(supabase, context.organizationId),
+    getDepartments(supabase, context.organizationId),
+  ]);
+  return { context, meetings, departments };
+}
+
+export async function getDocumentsPageData(): Promise<{ context: AppContext | null; documents: DocumentView[]; meetings: MeetingOption[]; members: MemberOption[] }> {
+  const { supabase, context } = await getRequestContext();
+  if (!context) return { context: null, documents: [], meetings: [], members: [] };
+  const [documents, meetings, members] = await Promise.all([
+    getDocuments(supabase, context.organizationId),
+    getMeetingOptions(supabase, context.organizationId),
+    getMembers(supabase, context.organizationId),
+  ]);
+  return { context, documents, meetings, members };
+}
+
+export async function getReportsPageData(): Promise<{ context: AppContext | null; reports: ReportView[] }> {
+  const { supabase, context } = await getRequestContext();
+  if (!context) return { context: null, reports: [] };
+  return { context, reports: await getReports(supabase, context.organizationId) };
+}
+
+export async function getMembersPageData(): Promise<{ context: AppContext | null; members: MemberOption[] }> {
+  const { supabase, context } = await getRequestContext();
+  if (!context) return { context: null, members: [] };
+  return { context, members: await getMembers(supabase, context.organizationId) };
+}
+
+export async function getAuditPageData(): Promise<{ context: AppContext | null; auditLogs: AuditView[] }> {
+  const { supabase, context } = await getRequestContext();
+  if (!context) return { context: null, auditLogs: [] };
+  return { context, auditLogs: await getAuditLogs(supabase, context.organizationId) };
+}
+
+export async function getMeetingFormData(): Promise<{ context: AppContext | null; departments: DepartmentOption[]; members: MemberOption[] }> {
+  const { supabase, context } = await getRequestContext();
+  if (!context) return { context: null, departments: [], members: [] };
+  const [departments, members] = await Promise.all([
+    getDepartments(supabase, context.organizationId),
+    getMembers(supabase, context.organizationId),
+  ]);
+  return { context, departments, members };
+}
+
+function emptyWorkspaceData(): WorkspaceData {
+  return { context: null, meetings: [], documents: [], reports: [], departments: [], members: [], auditLogs: [] };
+}
+
 export async function getMeetingDetail(meetingId: string): Promise<{ context: AppContext | null; detail: MeetingDetailView | null; departments: DepartmentOption[]; members: MemberOption[] }> {
-  const supabase = (await createClient()) as AnySupabase;
-  const context = await getAppContext(supabase);
+  const { supabase, context } = await getRequestContext();
   if (!context) return { context: null, detail: null, departments: [], members: [] };
 
   const [departments, members] = await Promise.all([
@@ -269,6 +366,15 @@ async function getMeetings(supabase: AnySupabase, organizationId: string): Promi
   const participantCounts = countBy(participantRows ?? [], "meeting_id");
 
   return (meetings ?? []).map((row: any) => mapMeeting(row, departmentMap, participantCounts, reportMap, profileMap));
+}
+
+async function getMeetingOptions(supabase: AnySupabase, organizationId: string): Promise<MeetingOption[]> {
+  const { data } = await supabase
+    .from("meetings")
+    .select("id,title")
+    .eq("organization_id", organizationId)
+    .order("meeting_date", { ascending: false });
+  return (data ?? []).map((row: any) => ({ id: row.id, title: row.title }));
 }
 
 async function getReports(supabase: AnySupabase, organizationId: string): Promise<ReportView[]> {

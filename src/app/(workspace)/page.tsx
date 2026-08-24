@@ -2,10 +2,10 @@ import Link from "next/link";
 import { CalendarDays, ChevronRight, Clock3, FileCheck2, FilePenLine, Files, MapPin, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { getWorkspaceData, type MeetingListItem } from "@/lib/meetflow-data";
+import { getDashboardData, type MeetingListItem } from "@/lib/meetflow-data";
 
 export default async function DashboardPage() {
-  const data = await getWorkspaceData();
+  const data = await getDashboardData();
   const upcoming = data.meetings.filter((meeting) => meeting.status === "scheduled").slice(0, 4);
   const monthKey = new Date().toISOString().slice(0, 7);
   const meetingsThisMonth = data.meetings.filter((meeting) => meeting.date.startsWith(monthKey)).length;

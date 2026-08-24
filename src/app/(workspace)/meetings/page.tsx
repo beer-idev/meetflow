@@ -1,9 +1,9 @@
 import { PageHeader } from "@/components/page-header";
 import { MeetingsList, NewMeetingAction } from "@/features/meetings/meetings-list";
-import { getWorkspaceData } from "@/lib/meetflow-data";
+import { getMeetingsPageData } from "@/lib/meetflow-data";
 
 export default async function MeetingsPage() {
-  const data = await getWorkspaceData();
+  const data = await getMeetingsPageData();
 
   const canCreate = ["admin", "chair", "reporter"].includes(data.context?.role ?? "");
   return <>

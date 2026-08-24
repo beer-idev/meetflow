@@ -1,10 +1,10 @@
 import { PageHeader } from "@/components/page-header";
 import { AccessDenied } from "@/components/access-denied";
 import { AuditList } from "@/features/administration/audit-list";
-import { getWorkspaceData } from "@/lib/meetflow-data";
+import { getAuditPageData } from "@/lib/meetflow-data";
 
 export default async function AuditPage() {
-  const data = await getWorkspaceData();
+  const data = await getAuditPageData();
   if (data.context?.role !== "admin") return <AccessDenied />;
 
   return <>

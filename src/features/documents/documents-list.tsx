@@ -6,7 +6,7 @@ import { Pagination } from "@/components/data/pagination";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { getDocumentDownloadUrlAction, getDocumentViewUrlAction, grantDocumentPermissionsAction, uploadDocumentAction } from "@/app/actions/meetings";
-import type { DocumentView, MeetingListItem, MemberOption } from "@/lib/meetflow-data";
+import type { DocumentView, MeetingOption, MemberOption } from "@/lib/meetflow-data";
 
 const PAGE_SIZE = 8;
 
@@ -76,7 +76,7 @@ export function DocumentsList({ documents, members }: { documents: DocumentView[
   </>;
 }
 
-export function UploadButton({ meetings }: { meetings: MeetingListItem[] }) {
+export function UploadButton({ meetings }: { meetings: MeetingOption[] }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
