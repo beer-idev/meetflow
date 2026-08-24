@@ -2,5 +2,36 @@ import { Files, LockKeyhole } from "lucide-react";
 import { SetPasswordForm } from "@/components/auth/set-password-form";
 
 export default function SetPasswordPage() {
-  return <main className="flex min-h-screen items-center justify-center bg-[#f8faff] px-5 py-10"><section className="w-full max-w-[460px] rounded-2xl border border-[#e0e6f0] bg-white p-7 shadow-[0_20px_60px_rgba(30,58,110,.08)] sm:p-9"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[#2563eb] text-white"><Files className="h-5 w-5" /></span><div><p className="text-xl font-bold text-[#17243c]">MeetFlow</p><p className="text-[11px] text-[#8290a7]">Meeting workspace</p></div></div><div className="mt-9 flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#edf3ff] text-[#2563eb]"><LockKeyhole className="h-5 w-5" /></span><div><p className="text-xs font-bold uppercase tracking-[.14em] text-[#7e8ca3]">เริ่มต้นใช้งาน</p><h1 className="mt-1 text-2xl font-bold text-[#16233b]">ตั้งรหัสผ่านของคุณ</h1><p className="mt-2 text-sm leading-6 text-[#748198]">ตั้งรหัสผ่านเพื่อเข้าสู่ระบบ MeetFlow จากคำเชิญของผู้ดูแลระบบ</p></div></div><SetPasswordForm /></section></main>;
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#f8faff] px-5 py-10">
+      <section className="w-full max-w-[460px] rounded-2xl border border-[#e0e6f0] bg-white p-7 shadow-[0_20px_60px_rgba(30,58,110,.08)] sm:p-9">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#2563eb] text-white">
+            <Files className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-xl font-bold text-[#17243c]">MeetFlow</p>
+            <p className="text-[11px] text-[#8290a7]">Meeting workspace</p>
+          </div>
+        </div>
+        <div className="mt-9 flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#edf3ff] text-[#2563eb]">
+            <LockKeyhole className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.14em] text-[#7e8ca3]">
+              เริ่มต้นใช้งาน
+            </p>
+            <h1 className="mt-1 text-2xl font-bold text-[#16233b]">
+              ตั้งรหัสผ่านของคุณ
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-[#748198]">
+              ตั้งรหัสผ่านเพื่อเข้าสู่ระบบ MeetFlow จากคำเชิญของผู้ดูแลระบบ
+            </p>
+          </div>
+        </div>
+        <SetPasswordForm />
+      </section>
+    </main>
+  );
 }

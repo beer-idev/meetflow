@@ -69,9 +69,15 @@ export async function createMeetingAction(input: unknown): Promise<ActionResult<
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "ข้อมูลการประชุมไม่ถูกต้อง" };
 
   const values = parsed.data;
-  const { data, error } = await context.supabase
+  // Generate the id before inserting so the action does not need a
+  // post-insert `RETURNING`/select. The latter is subject to the meetings
+  // SELECT policy and can make an otherwise valid insert look like an RLS
+  // INSERT failure before the participant rows exist.
+  const meetingId = randomUUID();
+  const { error } = await context.supabase
     .from("meetings")
     .insert({
+      id: meetingId,
       organization_id: context.organizationId,
       department_id: values.departmentId || null,
       title: values.title,
@@ -84,12 +90,9 @@ export async function createMeetingAction(input: unknown): Promise<ActionResult<
       meeting_type: values.type,
       description: values.description || null,
       created_by: context.user.id,
-    })
-    .select("id")
-    .single();
+    });
 
   if (error) return { ok: false, error: error.message };
-  const meetingId = data.id as string;
 
   const participantIds = Array.from(new Set([context.user.id, ...values.participantIds]));
   if (participantIds.length) {
