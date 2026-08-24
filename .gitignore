@@ -49,3 +49,9 @@ next-env.d.ts
 # Supabase local runtime data
 supabase/.branches/
 supabase/.temp/
+
+/.agents/
+/.github/
+/supabase/
+/scripts/
+/docs/
