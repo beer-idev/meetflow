@@ -23,11 +23,12 @@ export function PrintReport({ detail }: { detail: MeetingDetailView }) {
         <b>ผู้เข้าร่วม</b><p>{detail.participants.length} คน</p>
       </section>
       <section className="mt-8 space-y-7 text-sm leading-7">
+        {detail.report?.plainText && <ReportSection title="รายงานการประชุม"><p className="whitespace-pre-line">{detail.report.plainText}</p></ReportSection>}
         {detail.agenda.map((item) => <ReportSection key={item.id} title={`ระเบียบวาระที่ ${item.position} ${item.title}`}>
           {item.detail && <p>{item.detail}</p>}
           <Resolution>{item.resolution ?? "รอบันทึกมติ"}</Resolution>
         </ReportSection>)}
-        {!detail.agenda.length && detail.report?.plainText && <p className="whitespace-pre-line">{detail.report.plainText}</p>}
+        {!detail.agenda.length && !detail.report?.plainText && <p>ยังไม่มีเนื้อหารายงานการประชุม</p>}
       </section>
       <footer className="mt-16 grid grid-cols-2 gap-16 text-center text-sm">
         <Signature name={detail.report?.preparedBy ?? detail.owner} title="ผู้จดรายงานการประชุม" />

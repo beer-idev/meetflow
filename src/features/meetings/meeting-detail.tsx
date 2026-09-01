@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Copy, Download, Eye, FilePenLine, FileText, Link2, ListChecks, MapPin, MoreHorizontal, Paperclip, Pencil, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Copy, Download, Eye, FilePenLine, FileText, Link2, ListChecks, MapPin, Paperclip, Pencil, ShieldCheck, Upload, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/status-badge";
 import { ReportEditorDialog } from "@/components/report-editor-dialog";
-import { addParticipantAction, createShareLinkAction, getDocumentDownloadUrlAction, getDocumentViewUrlAction, grantDocumentPermissionAction, saveReportAction } from "@/app/actions/meetings";
+import { AgendaManager } from "@/features/meetings/agenda-manager";
+import { MeetingWorkflowControl } from "@/features/meetings/meeting-workflow-control";
+import { addParticipantAction, createShareLinkAction, getDocumentDownloadUrlAction, getDocumentViewUrlAction, grantDocumentPermissionAction, saveReportAction, uploadDocumentAction } from "@/app/actions/meetings";
 import { cn } from "@/lib/utils";
 import type { AppRole, MeetingDetailView, MemberOption } from "@/lib/meetflow-data";
 
@@ -36,10 +39,10 @@ export function MeetingDetail({ detail, members, role }: { detail: MeetingDetail
     </section>
 
     <div className="mt-6">
-      {tab === "overview" && <Overview detail={detail} onTab={setTab} onEdit={() => setEditorOpen(true)} canEdit={canEdit} />}
-      {tab === "agenda" && <Agenda items={detail.agenda} />}
+      {tab === "overview" && <Overview detail={detail} onTab={setTab} onEdit={() => setEditorOpen(true)} canEdit={canEdit} canManage={canManage} notify={notify} />}
+      {tab === "agenda" && <AgendaManager meetingId={detail.id} items={detail.agenda} canEdit={canEdit} notify={notify} />}
       {tab === "participants" && <Participants detail={detail} members={members} notify={notify} canManage={canManage} />}
-      {tab === "documents" && <Documents detail={detail} notify={notify} />}
+      {tab === "documents" && <Documents detail={detail} notify={notify} canManage={canManage} />}
       {tab === "minutes" && <Minutes detail={detail} onEdit={() => setEditorOpen(true)} onShare={() => setShareOpen(true)} canEdit={canEdit} canManage={canManage} />}
       {tab === "permissions" && <Permissions detail={detail} members={members} notify={notify} />}
     </div>
@@ -50,12 +53,8 @@ export function MeetingDetail({ detail, members, role }: { detail: MeetingDetail
   </>;
 }
 
-function Overview({ detail, onTab, onEdit, canEdit }: { detail: MeetingDetailView; onTab: (tab: Tab) => void; onEdit: () => void; canEdit: boolean }) {
-  return <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]"><div className="space-y-6">{canEdit && <div className="flex flex-col gap-4 rounded-xl border border-[#cddcf7] bg-[#f3f7ff] p-5 sm:flex-row sm:items-center"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-[#2e64bd] shadow-sm"><FilePenLine className="h-5 w-5" /></span><div className="flex-1"><p className="font-bold text-[#273b61]">ขั้นตอนถัดไป: จัดทำรายงานการประชุม</p><p className="mt-1 text-sm text-[#637493]">บันทึกสาระสำคัญและมติของแต่ละระเบียบวาระก่อนส่งตรวจทาน</p></div><Button onClick={onEdit}>เริ่มเขียนรายงาน</Button></div>}<Panel title="ระเบียบวาระ" description={`${detail.agenda.length} หัวข้อ`} action="ดูทั้งหมด" onAction={() => onTab("agenda")}><div className="divide-y divide-[#e8ecf2]">{detail.agenda.slice(0, 4).map((item) => <AgendaRow key={item.id} index={item.position} title={item.title} status={item.resolution ? "บันทึกมติแล้ว" : "รอบันทึกมติ"} />)}{!detail.agenda.length && <Empty text="ยังไม่มีระเบียบวาระ" />}</div></Panel><Panel title="เอกสารประกอบ" description={`${detail.documents.length} ไฟล์`} action="จัดการเอกสาร" onAction={() => onTab("documents")}><FileRows documents={detail.documents} /></Panel></div><div className="space-y-6"><Panel title="ผู้เข้าร่วมประชุม" description={`${detail.participants.length} คน`} action="ดูรายชื่อ" onAction={() => onTab("participants")}><div className="px-5 pb-5"><div className="flex -space-x-2">{detail.participants.slice(0, 5).map((person) => <span key={person.id} title={person.name} className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-[#dfe9fc] text-[10px] font-bold text-[#315f9f]">{person.initials}</span>)}{detail.participants.length > 5 && <span className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-[#eff2f6] text-[10px] font-bold text-[#65738a]">+{detail.participants.length - 5}</span>}</div></div></Panel><Panel title="ข้อมูลการจัดทำรายงาน" description="สถานะและผู้รับผิดชอบ"><div className="space-y-4 px-5 pb-5"><LabelValue label="ผู้จัดทำ" value={detail.report?.preparedBy ?? detail.owner} /><LabelValue label="สถานะรายงาน" value={detail.report ? reportStatus(detail.report.status) : "ยังไม่มีรายงาน"} /><LabelValue label="เวอร์ชัน" value={detail.report ? `v${detail.report.version}` : "-"} /></div></Panel></div></div>;
-}
-
-function Agenda({ items }: { items: MeetingDetailView["agenda"] }) {
-  return <Panel title="ระเบียบวาระการประชุม" description="บันทึกสาระสำคัญและมติแยกตามหัวข้อ"><div className="divide-y divide-[#e7ebf1]">{items.map((item) => <div key={item.id} className="p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#eaf1ff] text-xs font-bold text-[#285eb8]">{item.position}</span><div className="flex-1"><div className="flex items-start justify-between gap-3"><h3 className="font-bold text-[#2a374d]">{item.title}</h3><button className="rounded-md p-1.5 text-[#919cad] hover:bg-[#f1f4f8]"><MoreHorizontal className="h-4 w-4" /></button></div>{item.detail && <p className="mt-2 text-sm leading-6 text-[#6b788d]">{item.detail}</p>}<div className="mt-4 rounded-lg border border-[#d8e5df] bg-[#f3faf6] px-4 py-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#568070]">มติที่ประชุม</p><p className="mt-1 text-sm text-[#385b50]">{item.resolution ?? "รอบันทึกมติ"}</p></div></div></div></div>)}{!items.length && <Empty text="ยังไม่มีระเบียบวาระ" />}</div></Panel>;
+function Overview({ detail, onTab, onEdit, canEdit, canManage, notify }: { detail: MeetingDetailView; onTab: (tab: Tab) => void; onEdit: () => void; canEdit: boolean; canManage: boolean; notify: (message: string) => void }) {
+  return <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]"><div className="space-y-6">{canEdit && <div className="flex flex-col gap-4 rounded-xl border border-[#cddcf7] bg-[#f3f7ff] p-5 sm:flex-row sm:items-center"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white text-[#2e64bd] shadow-sm"><FilePenLine className="h-5 w-5" /></span><div className="flex-1"><p className="font-bold text-[#273b61]">ขั้นตอนถัดไป: จัดทำรายงานการประชุม</p><p className="mt-1 text-sm text-[#637493]">บันทึกสาระสำคัญและมติของแต่ละระเบียบวาระก่อนส่งตรวจทาน</p></div><Button onClick={onEdit}>เริ่มเขียนรายงาน</Button></div>}<Panel title="ระเบียบวาระ" description={`${detail.agenda.length} หัวข้อ`} action="ดูทั้งหมด" onAction={() => onTab("agenda")}><div className="divide-y divide-[#e8ecf2]">{detail.agenda.slice(0, 4).map((item) => <AgendaRow key={item.id} index={item.position} title={item.title} status={item.resolution ? "บันทึกมติแล้ว" : "รอบันทึกมติ"} />)}{!detail.agenda.length && <Empty text="ยังไม่มีระเบียบวาระ" />}</div></Panel><Panel title="เอกสารประกอบ" description={`${detail.documents.length} ไฟล์`} action="จัดการเอกสาร" onAction={() => onTab("documents")}><FileRows documents={detail.documents} /></Panel></div><div className="space-y-6">{canManage && <MeetingWorkflowControl meetingId={detail.id} value={detail.status} notify={notify} />}<Panel title="ผู้เข้าร่วมประชุม" description={`${detail.participants.length} คน`} action="ดูรายชื่อ" onAction={() => onTab("participants")}><div className="px-5 pb-5"><div className="flex -space-x-2">{detail.participants.slice(0, 5).map((person) => <span key={person.id} title={person.name} className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-[#dfe9fc] text-[10px] font-bold text-[#315f9f]">{person.initials}</span>)}{detail.participants.length > 5 && <span className="grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-[#eff2f6] text-[10px] font-bold text-[#65738a]">+{detail.participants.length - 5}</span>}</div></div></Panel><Panel title="ข้อมูลการจัดทำรายงาน" description="สถานะและผู้รับผิดชอบ"><div className="space-y-4 px-5 pb-5"><LabelValue label="ผู้จัดทำ" value={detail.report?.preparedBy ?? detail.owner} /><LabelValue label="สถานะรายงาน" value={detail.report ? reportStatus(detail.report.status) : "ยังไม่มีรายงาน"} /><LabelValue label="เวอร์ชัน" value={detail.report ? `v${detail.report.version}` : "-"} /></div></Panel></div></div>;
 }
 
 function Participants({ detail, members, notify, canManage }: { detail: MeetingDetailView; members: MemberOption[]; notify: (message: string) => void; canManage: boolean }) {
@@ -73,10 +72,29 @@ function Participants({ detail, members, notify, canManage }: { detail: MeetingD
   return <Panel title="ผู้เข้าร่วมประชุม" description={`${detail.participants.length} คน`} action={canManage ? "เพิ่มผู้เข้าร่วม" : undefined} onAction={add}>{canManage && <div className="border-b border-[#e7ebf1] px-5 py-4 sm:px-6"><div className="flex gap-2"><select value={userId} onChange={(event) => setUserId(event.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-[#d9e0ea] px-3 text-sm"><option value="">เลือกผู้ใช้งานในองค์กร</option>{available.map((member) => <option key={member.id} value={member.id}>{member.name} ({member.email})</option>)}</select><Button type="button" onClick={add} disabled={isPending}>เพิ่ม</Button></div></div>}<div className="divide-y divide-[#e8ecf2]">{detail.participants.map((person) => <div key={person.id} className="flex items-center gap-3 px-5 py-4 sm:px-6"><span className="grid h-9 w-9 place-items-center rounded-full bg-[#e2ebfc] text-[10px] font-bold text-[#315f9f]">{person.initials}</span><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[#334057]">{person.name}</p><p className="truncate text-xs text-[#8b95a6]">{person.email} · {person.department}</p></div><span className="hidden rounded-full bg-[#f0f3f7] px-2.5 py-1 text-[10px] font-bold text-[#657187] sm:inline">{person.meetingRole === "chair" ? "ประธาน" : person.meetingRole === "reporter" ? "ผู้จดรายงาน" : "ผู้เข้าร่วม"}</span><span className="text-xs font-semibold text-[#2c7a61]">{attendanceLabel(person.attendanceStatus)}</span></div>)}</div></Panel>;
 }
 
-function Documents({ detail, notify }: { detail: MeetingDetailView; notify: (message: string) => void }) {
+function Documents({ detail, notify, canManage }: { detail: MeetingDetailView; notify: (message: string) => void; canManage: boolean }) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [category, setCategory] = useState("supporting_document");
+  const [isPending, startTransition] = useTransition();
   const open = (documentId: string) => getDocumentViewUrlAction(documentId).then((result) => result.ok ? window.open(result.data.url, "_blank", "noopener,noreferrer") : notify(result.error));
   const download = (documentId: string) => getDocumentDownloadUrlAction(documentId).then((result) => result.ok ? window.location.assign(result.data.url) : notify(result.error));
-  return <Panel title="เอกสารทั้งหมด" description={`${detail.documents.length} ไฟล์ · จัดเก็บในพื้นที่ส่วนตัว`}><FileRows documents={detail.documents} onOpen={open} onDownload={download} /></Panel>;
+  const upload = () => {
+    const file = inputRef.current?.files?.[0];
+    if (!file) return notify("กรุณาเลือกไฟล์ที่ต้องการอัปโหลด");
+    const formData = new FormData();
+    formData.set("meetingId", detail.id);
+    formData.set("category", category);
+    formData.set("file", file);
+    startTransition(async () => {
+      const result = await uploadDocumentAction(formData);
+      if (!result.ok) return notify(result.error);
+      if (inputRef.current) inputRef.current.value = "";
+      notify("อัปโหลดเอกสารแล้ว");
+      router.refresh();
+    });
+  };
+  return <Panel title="เอกสารทั้งหมด" description={`${detail.documents.length} ไฟล์ · จัดเก็บใน Supabase Storage`}>{canManage && <div className="border-b border-[#e7ebf1] bg-[#fbfcfe] px-5 py-4 sm:px-6"><div className="grid gap-3 lg:grid-cols-[180px_minmax(0,1fr)_auto]"><select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 rounded-lg border border-[#d9e0ea] bg-white px-3 text-sm text-[#4d5a70]"><option value="supporting_document">เอกสารประกอบ</option><option value="agenda">ระเบียบวาระ</option><option value="invitation">หนังสือเชิญ</option><option value="report">รายงานการประชุม</option></select><input ref={inputRef} type="file" className="block h-10 w-full rounded-lg border border-[#d9e0ea] bg-white text-sm text-[#59667a] file:mr-3 file:h-full file:border-0 file:border-r file:border-[#e2e7ef] file:bg-[#f3f6fb] file:px-4 file:text-sm file:font-semibold file:text-[#355f9f]" /><Button type="button" onClick={upload} disabled={isPending}><Upload className="h-4 w-4" />{isPending ? "กำลังอัปโหลด..." : "อัปโหลดเอกสาร"}</Button></div><p className="mt-2 text-xs text-[#8994a6]">รองรับไฟล์ทั่วไป ขนาดไม่เกิน 50 MB</p></div>}<FileRows documents={detail.documents} onOpen={open} onDownload={download} /></Panel>;
 }
 
 function Minutes({ detail, onEdit, onShare, canEdit, canManage }: { detail: MeetingDetailView; onEdit: () => void; onShare: () => void; canEdit: boolean; canManage: boolean }) {
@@ -106,7 +124,7 @@ function ShareDialog({ meetingId, open, onOpenChange, notify }: { meetingId: str
     if (!result.ok) return notify(result.error);
     setUrl(`${window.location.origin}${result.data.url}`);
   });
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-[520px]"><div className="border-b border-[#e5e9f1] px-6 py-5"><DialogTitle className="text-lg font-bold text-[#24324a]">แชร์รายงานการประชุม</DialogTitle><DialogDescription className="mt-1 text-sm text-[#7c889c]">สร้างลิงก์หมดอายุ 7 วัน และยังคงต้องกำหนดสิทธิ์ผู้เห็นเอกสารในแท็บสิทธิ์</DialogDescription></div><div className="space-y-5 px-6 py-5"><Button onClick={create} disabled={isPending}>{isPending ? "กำลังสร้าง..." : "สร้างลิงก์แชร์"}</Button>{url && <div className="flex items-center gap-2 rounded-lg bg-[#f4f7fb] p-2"><input readOnly value={url} className="min-w-0 flex-1 bg-transparent px-2 text-sm text-[#5a687e] outline-none" /><Button size="sm" onClick={() => { navigator.clipboard?.writeText(url); notify("คัดลอกลิงก์แล้ว"); }}><Copy className="h-4 w-4" />คัดลอก</Button></div>}</div></DialogContent></Dialog>;
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-[520px]"><div className="border-b border-[#e5e9f1] px-6 py-5"><DialogTitle className="text-lg font-bold text-[#24324a]">แชร์รายงานการประชุม</DialogTitle><DialogDescription className="mt-1 text-sm text-[#7c889c]">สร้างลิงก์สาธารณะแบบอ่านอย่างเดียว อายุ 7 วัน ผู้รับลิงก์เปิดอ่านและบันทึกเป็น PDF ได้โดยไม่ต้องเข้าสู่ระบบ</DialogDescription></div><div className="space-y-5 px-6 py-5"><Button onClick={create} disabled={isPending}>{isPending ? "กำลังสร้าง..." : "สร้างลิงก์แชร์"}</Button>{url && <div className="flex items-center gap-2 rounded-lg bg-[#f4f7fb] p-2"><input readOnly value={url} className="min-w-0 flex-1 bg-transparent px-2 text-sm text-[#5a687e] outline-none" /><Button size="sm" onClick={() => { navigator.clipboard?.writeText(url); notify("คัดลอกลิงก์แล้ว"); }}><Copy className="h-4 w-4" />คัดลอก</Button></div>}</div></DialogContent></Dialog>;
 }
 
 function Panel({ title, description, action, onAction, children }: { title: string; description: string; action?: string; onAction?: () => void; children: React.ReactNode }) { return <section className="overflow-hidden rounded-xl border border-[#dfe5ef] bg-white"><div className="flex items-center justify-between gap-3 border-b border-[#e7ebf1] px-5 py-4 sm:px-6"><div><h2 className="font-bold text-[#28354c]">{title}</h2><p className="mt-0.5 text-xs text-[#8792a5]">{description}</p></div>{action && <button onClick={onAction} className="flex items-center gap-1 text-xs font-semibold text-[#2563eb]">{action}<ChevronRight className="h-3.5 w-3.5" /></button>}</div>{children}</section>; }

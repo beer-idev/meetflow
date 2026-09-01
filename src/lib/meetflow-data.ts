@@ -488,6 +488,7 @@ function mapWorkflowStatus(meetingStatus: string, reportStatus?: string): Meetin
   if (reportStatus === "draft") return "minutes";
   if (meetingStatus === "completed") return "minutes";
   if (meetingStatus === "cancelled") return "cancelled";
+  if (meetingStatus === "in_progress") return "in_progress";
   return "scheduled";
 }
 

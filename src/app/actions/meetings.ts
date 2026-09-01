@@ -11,6 +11,7 @@ type ActionResult<T = undefined> = T extends undefined ? { ok: true } | { ok: fa
 
 const roleSchema = z.enum(["admin", "chair", "reporter", "reviewer", "participant"]);
 const accessSchema = z.enum(["view", "edit", "manage"]);
+const workflowStatusSchema = z.enum(["scheduled", "in_progress", "minutes", "review", "published", "cancelled"]);
 const meetingManagerRoles = ["admin", "chair", "reporter"];
 
 const createMeetingInput = meetingSchema.extend({
@@ -130,6 +131,115 @@ export async function addParticipantAction(meetingId: string, userId: string): P
   return { ok: true };
 }
 
+export async function saveAgendaItemAction(input: unknown): Promise<ActionResult> {
+  const context = await getContext();
+  if ("error" in context && context.error) return { ok: false, error: context.error };
+  if (!meetingManagerRoles.includes(context.role)) return { ok: false, error: "คุณไม่มีสิทธิ์แก้ไขระเบียบวาระ" };
+
+  const parsed = z.object({
+    meetingId: z.string().uuid(),
+    itemId: z.string().uuid().nullable().optional(),
+    title: z.string().trim().min(2, "กรุณาระบุชื่อระเบียบวาระ").max(500),
+    detail: z.string().trim().max(10000).optional(),
+    resolution: z.string().trim().max(10000).optional(),
+  }).safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "ข้อมูลระเบียบวาระไม่ถูกต้อง" };
+
+  const values = parsed.data;
+  if (values.itemId) {
+    const { error } = await context.supabase.from("agenda_items").update({
+      title: values.title,
+      detail: values.detail || null,
+      resolution: values.resolution || null,
+    }).eq("id", values.itemId).eq("meeting_id", values.meetingId);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const { data: lastItem, error: positionError } = await context.supabase
+      .from("agenda_items")
+      .select("position")
+      .eq("meeting_id", values.meetingId)
+      .order("position", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (positionError) return { ok: false, error: positionError.message };
+    const { error } = await context.supabase.from("agenda_items").insert({
+      meeting_id: values.meetingId,
+      position: Number(lastItem?.position ?? 0) + 1,
+      title: values.title,
+      detail: values.detail || null,
+      resolution: values.resolution || null,
+    });
+    if (error) return { ok: false, error: error.message };
+  }
+
+  await writeAudit(context.supabase, context.organizationId, context.user.id, values.itemId ? "agenda_updated" : "agenda_created", "meeting", values.meetingId, { title: values.title });
+  revalidatePath(`/meetings/${values.meetingId}`);
+  return { ok: true };
+}
+
+export async function deleteAgendaItemAction(meetingId: string, itemId: string): Promise<ActionResult> {
+  const context = await getContext();
+  if ("error" in context && context.error) return { ok: false, error: context.error };
+  if (!meetingManagerRoles.includes(context.role)) return { ok: false, error: "คุณไม่มีสิทธิ์ลบระเบียบวาระ" };
+  const parsed = z.object({ meetingId: z.string().uuid(), itemId: z.string().uuid() }).safeParse({ meetingId, itemId });
+  if (!parsed.success) return { ok: false, error: "ข้อมูลระเบียบวาระไม่ถูกต้อง" };
+  const { error } = await context.supabase.from("agenda_items").delete().eq("id", itemId).eq("meeting_id", meetingId);
+  if (error) return { ok: false, error: error.message };
+  await writeAudit(context.supabase, context.organizationId, context.user.id, "agenda_deleted", "meeting", meetingId, { agenda_id: itemId });
+  revalidatePath(`/meetings/${meetingId}`);
+  return { ok: true };
+}
+
+export async function updateMeetingWorkflowStatusAction(meetingId: string, status: string): Promise<ActionResult> {
+  const context = await getContext();
+  if ("error" in context && context.error) return { ok: false, error: context.error };
+  if (!meetingManagerRoles.includes(context.role)) return { ok: false, error: "คุณไม่มีสิทธิ์เปลี่ยนสถานะการประชุม" };
+  const parsed = z.object({ meetingId: z.string().uuid(), status: workflowStatusSchema }).safeParse({ meetingId, status });
+  if (!parsed.success) return { ok: false, error: "สถานะการประชุมไม่ถูกต้อง" };
+
+  const target = parsed.data.status;
+  const reportStatus = target === "minutes" ? "draft" : target === "review" ? "in_review" : target === "published" ? "published" : null;
+  if (target === "review" || target === "published") {
+    const { data: report, error: reportError } = await context.supabase.from("reports").select("id,plain_text").eq("meeting_id", meetingId).maybeSingle();
+    if (reportError) return { ok: false, error: reportError.message };
+    if (!report?.plain_text?.trim()) return { ok: false, error: "กรุณาเขียนและบันทึกรายงานการประชุมก่อนเปลี่ยนสถานะ" };
+  }
+
+  const databaseStatus = target === "minutes" || target === "review" || target === "published" ? "completed" : target;
+  const { error: meetingError } = await context.supabase.from("meetings").update({ status: databaseStatus }).eq("id", meetingId);
+  if (meetingError) return { ok: false, error: meetingError.message };
+
+  if (reportStatus) {
+    const { data: existing, error: existingError } = await context.supabase.from("reports").select("id").eq("meeting_id", meetingId).maybeSingle();
+    if (existingError) return { ok: false, error: existingError.message };
+    if (existing) {
+      const { error } = await context.supabase.from("reports").update({
+        status: reportStatus,
+        published_at: reportStatus === "published" ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", existing.id);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await context.supabase.from("reports").insert({
+        meeting_id: meetingId,
+        content: { type: "doc", content: [] },
+        plain_text: "",
+        status: "draft",
+        version: 1,
+        prepared_by: context.user.id,
+      });
+      if (error) return { ok: false, error: error.message };
+    }
+  }
+
+  await writeAudit(context.supabase, context.organizationId, context.user.id, "meeting_status_changed", "meeting", meetingId, { status: target });
+  revalidatePath("/");
+  revalidatePath("/meetings");
+  revalidatePath(`/meetings/${meetingId}`);
+  revalidatePath("/reports");
+  return { ok: true };
+}
+
 export async function uploadDocumentAction(formData: FormData): Promise<ActionResult> {
   const context = await getContext();
   if ("error" in context && context.error) return { ok: false, error: context.error };
@@ -159,7 +269,10 @@ export async function uploadDocumentAction(formData: FormData): Promise<ActionRe
     category: parsed.data.category,
     uploaded_by: context.user.id,
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    await context.supabase.storage.from("meeting-files").remove([storagePath]);
+    return { ok: false, error: error.message };
+  }
 
   await writeAudit(context.supabase, context.organizationId, context.user.id, "document_uploaded", "meeting", parsed.data.meetingId, { file_name: file.name });
   revalidatePath("/documents");
