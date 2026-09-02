@@ -32,7 +32,6 @@ button { cursor: pointer; }
 
 /* Adaptive one-page A4 meeting report. The density is calculated from the
    number of attendees, agendas, and content length before printing. */
-.official-report .report-header { letter-spacing: 0; }
 .official-report .report-body { padding-top: 1.35rem; padding-bottom: 1rem; }
 .official-report .report-people { margin-top: 1rem; line-height: 1.5; }
 .official-report .report-people > :not([hidden]) ~ :not([hidden]) { margin-top: .5rem; }
@@ -44,7 +43,6 @@ button { cursor: pointer; }
 .official-report .report-signatures { margin-top: 1.75rem; gap: 1.5rem; }
 .official-report .report-footer { margin-top: 1.25rem; }
 
-.official-report[data-density="compact"] .report-header { padding-top: .7rem; padding-bottom: .7rem; }
 .official-report[data-density="compact"] .report-body { padding: 1.4rem 2.25rem; }
 .official-report[data-density="compact"] .report-people { margin-top: 1rem; gap: .45rem; font-size: 12px; line-height: 1.5; }
 .official-report[data-density="compact"] .report-intro,
@@ -54,10 +52,6 @@ button { cursor: pointer; }
 .official-report[data-density="compact"] .report-signatures { margin-top: 2.25rem; gap: 2rem; font-size: 12px; }
 .official-report[data-density="compact"] .report-footer { margin-top: 2rem; }
 
-.official-report[data-density="dense"] .report-header,
-.official-report[data-density="ultra"] .report-header { padding-top: .7rem; padding-bottom: .7rem; }
-.official-report[data-density="dense"] .report-header h1,
-.official-report[data-density="ultra"] .report-header h1 { font-size: 1.45rem; }
 .official-report[data-density="dense"] .report-body { padding: 1rem 1.8rem; }
 .official-report[data-density="ultra"] .report-body { padding: .75rem 1.35rem; }
 .official-report[data-density="dense"] .report-people,

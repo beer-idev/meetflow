@@ -71,10 +71,6 @@ export function OfficialMeetingReport({ data }: { data: OfficialMeetingReportDat
 
   return <article ref={pageRef} data-density={density} className="official-report mx-auto min-h-[1123px] max-w-[794px] overflow-hidden bg-white text-[#25211f] shadow-sm print:min-h-0 print:max-w-none print:shadow-none">
     <div ref={contentRef} className="report-fit-content">
-    <header className="report-header border-b-2 border-[#55473c] px-10 py-5 text-center sm:px-14">
-      <h1 className="text-2xl font-bold leading-tight tracking-normal text-[#25211f]">รายงานการประชุม</h1>
-    </header>
-
     <div className="report-body px-8 py-8 sm:px-14 sm:py-10">
       <section className="text-center">
         <h2 className="text-lg font-bold leading-8">{data.title}</h2>
