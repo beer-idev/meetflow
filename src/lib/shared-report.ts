@@ -8,6 +8,7 @@ export type SharedAgendaItem = {
 export type SharedParticipant = {
   name: string;
   attendance_status: string;
+  role?: string;
 };
 
 export type SharedReport = {

@@ -27,7 +27,7 @@ export const getSharedReport = cache(async (token: string): Promise<SharedReport
     if (!shared) return null;
 
     const [{ data: meeting }, { data: report }, { data: agenda }, { data: participantRows }] = await Promise.all([
-      admin.from("meetings").select("id,title,meeting_type,description,meeting_date,start_time,end_time,location,meeting_mode,online_url").eq("id", shared.meeting_id).maybeSingle(),
+      admin.from("meetings").select("id,organization_id,title,meeting_type,description,meeting_date,start_time,end_time,location,meeting_mode,online_url").eq("id", shared.meeting_id).maybeSingle(),
       admin.from("reports").select("plain_text,status,prepared_by").eq("meeting_id", shared.meeting_id).maybeSingle(),
       admin.from("agenda_items").select("position,title,detail,resolution").eq("meeting_id", shared.meeting_id).order("position"),
       admin.from("meeting_participants").select("user_id,attendance_status").eq("meeting_id", shared.meeting_id),
@@ -36,10 +36,12 @@ export const getSharedReport = cache(async (token: string): Promise<SharedReport
 
     const participantIds = (participantRows ?? []).map((row) => row.user_id);
     const profileIds = Array.from(new Set([report?.prepared_by, ...participantIds].filter(Boolean))) as string[];
-    const { data: profiles } = profileIds.length
-      ? await admin.from("profiles").select("id,display_name").in("id", profileIds)
-      : { data: [] };
+    const [{ data: profiles }, { data: memberships }] = await Promise.all([
+      profileIds.length ? admin.from("profiles").select("id,display_name").in("id", profileIds) : Promise.resolve({ data: [] }),
+      participantIds.length ? admin.from("memberships").select("user_id,role").eq("organization_id", meeting.organization_id).in("user_id", participantIds) : Promise.resolve({ data: [] }),
+    ]);
     const profileMap = new Map((profiles ?? []).map((profile) => [profile.id, profile.display_name]));
+    const roleMap = new Map((memberships ?? []).map((membership) => [membership.user_id, membership.role]));
 
     return {
       meeting_id: meeting.id,
@@ -60,6 +62,7 @@ export const getSharedReport = cache(async (token: string): Promise<SharedReport
       participants: (participantRows ?? []).map((participant) => ({
         name: profileMap.get(participant.user_id) ?? "ผู้เข้าร่วมประชุม",
         attendance_status: participant.attendance_status,
+        role: roleMap.get(participant.user_id),
       })),
     } as SharedReport;
   } catch {
