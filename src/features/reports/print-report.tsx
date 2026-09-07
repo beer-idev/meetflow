@@ -22,7 +22,9 @@ export function PrintReport({ detail }: { detail: MeetingDetailView }) {
       reportText: detail.report?.plainText,
       people: detail.participants.map((person) => ({
         name: person.name,
-        role: person.meetingRole === "chair" ? "ประธานการประชุม" : person.meetingRole === "reporter" ? "ผู้จดรายงานการประชุม" : person.department,
+        role: person.registrationSource === "qr"
+          ? [person.positionTitle, person.department !== "ไม่ระบุหน่วยงาน" ? person.department : ""].filter(Boolean).join(" · ")
+          : person.meetingRole === "chair" ? "ประธานการประชุม" : person.meetingRole === "reporter" ? "ผู้จดรายงานการประชุม" : person.department,
         absent: person.attendanceStatus === "absent" || person.attendanceStatus === "declined",
       })),
       agenda: detail.agenda,

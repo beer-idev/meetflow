@@ -53,6 +53,9 @@ export type AgendaView = {
 export type ParticipantView = MemberOption & {
   attendanceStatus: string;
   meetingRole: "chair" | "reporter" | "participant";
+  registrationSource: "member" | "qr";
+  positionTitle?: string;
+  checkedInAt?: string;
 };
 
 export type DocumentView = {
@@ -246,9 +249,10 @@ export async function getMeetingDetail(meetingId: string): Promise<{ context: Ap
 
   if (!meeting) return { context, detail: null, departments, members };
 
-  const [{ data: agendas }, { data: participantRows }, { data: attachments }, { data: report }, { data: permissions }] = await Promise.all([
+  const [{ data: agendas }, { data: participantRows }, { data: qrParticipantRows }, { data: attachments }, { data: report }, { data: permissions }] = await Promise.all([
     supabase.from("agenda_items").select("id,position,title,detail,resolution").eq("meeting_id", meetingId).order("position", { ascending: true }),
     supabase.from("meeting_participants").select("meeting_id,user_id,attendance_status").eq("meeting_id", meetingId),
+    supabase.from("meeting_attendance_registrations").select("id,full_name,position_title,department,checked_in_at").eq("meeting_id", meetingId).order("checked_in_at", { ascending: true }),
     supabase.from("attachments").select("id,file_name,mime_type,file_size,category,document_date,created_at,meeting_id").eq("meeting_id", meetingId).order("created_at", { ascending: false }),
     supabase.from("reports").select("id,meeting_id,content,plain_text,status,version,prepared_by,updated_at").eq("meeting_id", meetingId).maybeSingle(),
     supabase.from("document_permissions").select("user_id,access").eq("meeting_id", meetingId),
@@ -261,8 +265,33 @@ export async function getMeetingDetail(meetingId: string): Promise<{ context: Ap
   const reportMap = new Map(reportRows.map((row: any) => [row.meeting_id, row]));
   const mappedMeeting = mapMeeting(meeting, departmentMap, countBy(participantRows ?? [], "meeting_id"), reportMap, profileMap);
 
+  const memberParticipants: ParticipantView[] = (participantRows ?? []).map((row: any) => {
+    const member = members.find((item) => item.id === row.user_id) ?? fallbackMember(row.user_id, profileMap);
+    return {
+      ...member,
+      attendanceStatus: row.attendance_status,
+      meetingRole: member.role === "chair" ? "chair" : member.role === "reporter" ? "reporter" : "participant",
+      registrationSource: "member",
+    };
+  });
+  const qrParticipants: ParticipantView[] = (qrParticipantRows ?? []).map((row: any) => ({
+    id: row.id,
+    name: row.full_name,
+    email: "",
+    role: "participant",
+    department: row.department || "ไม่ระบุหน่วยงาน",
+    initials: initials(row.full_name),
+    attendanceStatus: "attended",
+    meetingRole: "participant",
+    registrationSource: "qr",
+    positionTitle: row.position_title,
+    checkedInAt: formatDateTime(row.checked_in_at),
+  }));
+  const allParticipants = [...memberParticipants, ...qrParticipants];
+
   const detail: MeetingDetailView = {
     ...mappedMeeting,
+    participantCount: allParticipants.length,
     description: meeting.description,
     agenda: (agendas ?? []).map((item: any) => ({
       id: item.id,
@@ -271,14 +300,7 @@ export async function getMeetingDetail(meetingId: string): Promise<{ context: Ap
       detail: item.detail,
       resolution: item.resolution,
     })),
-    participants: (participantRows ?? []).map((row: any) => {
-      const member = members.find((item) => item.id === row.user_id) ?? fallbackMember(row.user_id, profileMap);
-      return {
-        ...member,
-        attendanceStatus: row.attendance_status,
-        meetingRole: member.role === "chair" ? "chair" : member.role === "reporter" ? "reporter" : "participant",
-      };
-    }),
+    participants: allParticipants,
     documents: mapDocuments(attachments ?? [], new Map([[meeting.id, meeting]]), departmentMap),
     report: report ? mapReport(report, meeting.title, profileMap) : null,
     permissions: (permissions ?? []).map((row: any) => {
@@ -354,8 +376,9 @@ async function getMeetings(supabase: AnySupabase, organizationId: string): Promi
 
   const meetingIds = (meetings ?? []).map((row: any) => row.id);
   const creatorIds = (meetings ?? []).map((row: any) => row.created_by);
-  const [{ data: participantRows }, { data: reportRows }, departments, profileMap] = await Promise.all([
+  const [{ data: participantRows }, { data: qrParticipantRows }, { data: reportRows }, departments, profileMap] = await Promise.all([
     meetingIds.length ? supabase.from("meeting_participants").select("meeting_id").in("meeting_id", meetingIds) : { data: [] },
+    meetingIds.length ? supabase.from("meeting_attendance_registrations").select("meeting_id").in("meeting_id", meetingIds) : { data: [] },
     meetingIds.length ? supabase.from("reports").select("meeting_id,status").in("meeting_id", meetingIds) : { data: [] },
     getDepartments(supabase, organizationId),
     getProfileMap(supabase, creatorIds),
@@ -363,7 +386,7 @@ async function getMeetings(supabase: AnySupabase, organizationId: string): Promi
 
   const departmentMap = new Map(departments.map((department) => [department.id, department.name]));
   const reportMap = new Map((reportRows ?? []).map((row: any) => [row.meeting_id, row]));
-  const participantCounts = countBy(participantRows ?? [], "meeting_id");
+  const participantCounts = countBy([...(participantRows ?? []), ...(qrParticipantRows ?? [])], "meeting_id");
 
   return (meetings ?? []).map((row: any) => mapMeeting(row, departmentMap, participantCounts, reportMap, profileMap));
 }

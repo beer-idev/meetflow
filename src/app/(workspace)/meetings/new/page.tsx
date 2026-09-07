@@ -9,6 +9,6 @@ export default async function NewMeetingPage() {
 
   return <>
     <PageHeader eyebrow="การประชุม / สร้างใหม่" title="สร้างการประชุม" description="กรอกข้อมูล ผู้เข้าร่วม และระเบียบวาระสำหรับการประชุม" />
-    <MeetingCreateForm departments={data.departments} members={data.members} />
+    <MeetingCreateForm departments={data.departments} />
   </>;
 }

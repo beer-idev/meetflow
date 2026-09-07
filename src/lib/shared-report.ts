@@ -9,6 +9,7 @@ export type SharedParticipant = {
   name: string;
   attendance_status: string;
   role?: string;
+  label?: string;
 };
 
 export type SharedReport = {

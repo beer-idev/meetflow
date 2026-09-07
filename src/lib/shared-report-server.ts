@@ -9,7 +9,7 @@ export const getSharedReport = cache(async (token: string): Promise<SharedReport
   if (!token || token.length > 256) return null;
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("resolve_share_link", { p_token: token });
-  if (!error && data?.[0]) return data[0] as SharedReport;
+  if (!error && data?.[0]) return addQrParticipants(data[0] as SharedReport);
 
   // Compatibility fallback for deployments where the public RPC migration
   // has not reached PostgREST's schema cache yet. The service key remains on
@@ -26,11 +26,12 @@ export const getSharedReport = cache(async (token: string): Promise<SharedReport
       .maybeSingle();
     if (!shared) return null;
 
-    const [{ data: meeting }, { data: report }, { data: agenda }, { data: participantRows }] = await Promise.all([
+    const [{ data: meeting }, { data: report }, { data: agenda }, { data: participantRows }, { data: qrParticipantRows }] = await Promise.all([
       admin.from("meetings").select("id,organization_id,title,meeting_type,description,meeting_date,start_time,end_time,location,meeting_mode,online_url").eq("id", shared.meeting_id).maybeSingle(),
       admin.from("reports").select("plain_text,status,prepared_by").eq("meeting_id", shared.meeting_id).maybeSingle(),
       admin.from("agenda_items").select("position,title,detail,resolution").eq("meeting_id", shared.meeting_id).order("position"),
       admin.from("meeting_participants").select("user_id,attendance_status").eq("meeting_id", shared.meeting_id),
+      admin.from("meeting_attendance_registrations").select("full_name,position_title,department").eq("meeting_id", shared.meeting_id).order("checked_in_at"),
     ]);
     if (!meeting) return null;
 
@@ -59,13 +60,40 @@ export const getSharedReport = cache(async (token: string): Promise<SharedReport
       prepared_by: report?.prepared_by ? profileMap.get(report.prepared_by) ?? "ผู้จัดทำรายงาน" : "ผู้จัดทำรายงาน",
       expires_at: shared.expires_at,
       agenda: agenda ?? [],
-      participants: (participantRows ?? []).map((participant) => ({
+      participants: [...(participantRows ?? []).map((participant) => ({
         name: profileMap.get(participant.user_id) ?? "ผู้เข้าร่วมประชุม",
         attendance_status: participant.attendance_status,
         role: roleMap.get(participant.user_id),
-      })),
+      })), ...(qrParticipantRows ?? []).map((participant) => ({
+        name: participant.full_name,
+        attendance_status: "attended",
+        role: "external",
+        label: [participant.position_title, participant.department].filter(Boolean).join(" · "),
+      }))],
     } as SharedReport;
   } catch {
     return null;
   }
 });
+
+async function addQrParticipants(report: SharedReport): Promise<SharedReport> {
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("meeting_attendance_registrations")
+      .select("full_name,position_title,department")
+      .eq("meeting_id", report.meeting_id)
+      .order("checked_in_at");
+    return {
+      ...report,
+      participants: [...report.participants, ...(data ?? []).map((participant) => ({
+        name: participant.full_name,
+        attendance_status: "attended",
+        role: "external",
+        label: [participant.position_title, participant.department].filter(Boolean).join(" · "),
+      }))],
+    };
+  } catch {
+    return report;
+  }
+}

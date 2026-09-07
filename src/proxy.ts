@@ -26,11 +26,12 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   const isConfirmRoute = pathname === "/auth/confirm";
   const isShareRoute = pathname.startsWith("/share/");
+  const isAttendanceRoute = pathname.startsWith("/attendance/");
   const isSetPasswordRoute = pathname === "/set-password";
   const isResetPasswordRoute = pathname === "/reset-password";
   const needsPassword = Boolean((user?.invited_at || user?.user_metadata?.must_set_password === true) && user?.user_metadata?.password_set !== true);
-  if (!user && !isAuthRoute && !isConfirmRoute && !isShareRoute && !isResetPasswordRoute) return NextResponse.redirect(new URL("/login", request.url));
-  if (user && needsPassword && !isSetPasswordRoute && !isShareRoute) return NextResponse.redirect(new URL("/set-password", request.url));
+  if (!user && !isAuthRoute && !isConfirmRoute && !isShareRoute && !isAttendanceRoute && !isResetPasswordRoute) return NextResponse.redirect(new URL("/login", request.url));
+  if (user && needsPassword && !isSetPasswordRoute && !isShareRoute && !isAttendanceRoute) return NextResponse.redirect(new URL("/set-password", request.url));
   if (user && !needsPassword && isSetPasswordRoute) return NextResponse.redirect(new URL("/", request.url));
   if (user && isAuthRoute) return NextResponse.redirect(new URL("/", request.url));
   return response;

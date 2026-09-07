@@ -1,22 +1,19 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Check, ChevronLeft, Clock3, GripVertical, Link2, MapPin, Plus, Search, Trash2, UserPlus } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, Clock3, GripVertical, Link2, MapPin, Plus, QrCode, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { meetingSchema, type MeetingFormValues } from "@/lib/meeting-schema";
 import { createMeetingAction } from "@/app/actions/meetings";
-import type { DepartmentOption, MemberOption } from "@/lib/meetflow-data";
+import type { DepartmentOption } from "@/lib/meetflow-data";
 
 const field = "h-11 w-full rounded-lg border border-[#d8dfeb] bg-white px-3.5 text-sm text-[#29364d] outline-none placeholder:text-[#9ba5b5] focus:border-[#84aaf0] focus:ring-3 focus:ring-[#e7efff]";
 
-export function MeetingCreateForm({ departments, members }: { departments: DepartmentOption[]; members: MemberOption[] }) {
+export function MeetingCreateForm({ departments }: { departments: DepartmentOption[] }) {
   const router = useRouter();
-  const [participants, setParticipants] = useState<MemberOption[]>(members.slice(0, 1));
-  const [participantQuery, setParticipantQuery] = useState("");
-  const [selectedMemberId, setSelectedMemberId] = useState("");
   const [agendas, setAgendas] = useState(["เรื่องประธานแจ้งให้ที่ประชุมทราบ", "รับรองรายงานการประชุมครั้งที่ผ่านมา", "เรื่องเสนอเพื่อพิจารณา"]);
   const [departmentId, setDepartmentId] = useState(departments[0]?.id ?? "");
   const [endTime, setEndTime] = useState("12:00");
@@ -28,15 +25,6 @@ export function MeetingCreateForm({ departments, members }: { departments: Depar
   });
   const meetingMode = watch("meetingMode");
 
-  const availableMembers = useMemo(() => members.filter((member) => !participants.some((item) => item.id === member.id) && `${member.name} ${member.email}`.toLowerCase().includes(participantQuery.toLowerCase())), [members, participants, participantQuery]);
-  const addParticipant = () => {
-    const member = members.find((item) => item.id === selectedMemberId) ?? availableMembers[0];
-    if (!member) return;
-    setParticipants((current) => [...current, member]);
-    setSelectedMemberId("");
-    setParticipantQuery("");
-  };
-
   const submit = (values: MeetingFormValues) => {
     setFormError("");
     startTransition(async () => {
@@ -44,7 +32,7 @@ export function MeetingCreateForm({ departments, members }: { departments: Depar
         ...values,
         departmentId: departmentId || null,
         endTime,
-        participantIds: participants.map((person) => person.id),
+        participantIds: [],
         agendaTitles: agendas.filter((agenda) => agenda.trim().length > 0),
       });
       if (!result.ok) {
@@ -74,24 +62,8 @@ export function MeetingCreateForm({ departments, members }: { departments: Depar
       </section>
 
       <section className="rounded-xl border border-[#dfe5ef] bg-white">
-        <SectionHeading step="2" title="ผู้เข้าร่วมประชุม" description="เลือกจากผู้ใช้งานที่มีอยู่ในองค์กร" action={<button type="button" onClick={addParticipant} className="flex items-center gap-1.5 text-xs font-semibold text-[#2563eb]"><UserPlus className="h-4 w-4" />เพิ่มผู้เข้าร่วม</button>} />
-        <div className="p-5 sm:p-6">
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_260px_auto]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#929dae]" />
-              <input value={participantQuery} onChange={(event) => setParticipantQuery(event.target.value)} className={`${field} pl-9`} placeholder="ค้นหาชื่อหรืออีเมล" />
-            </div>
-            <select value={selectedMemberId} onChange={(event) => setSelectedMemberId(event.target.value)} className={field}>
-              <option value="">เลือกรายชื่อ</option>
-              {availableMembers.map((member) => <option key={member.id} value={member.id}>{member.name} ({member.email})</option>)}
-            </select>
-            <Button type="button" variant="secondary" onClick={addParticipant}><Plus className="h-4 w-4" />เพิ่ม</Button>
-          </div>
-          <div className="mt-3 divide-y divide-[#e9edf3] rounded-lg border border-[#e1e6ee]">
-            {participants.map((person) => <div key={person.id} className="flex items-center gap-3 px-3 py-3"><span className="grid h-8 w-8 place-items-center rounded-full bg-[#e4edff] text-[10px] font-bold text-[#2d5ea9]">{person.initials}</span><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[#354157]">{person.name}</p><p className="truncate text-[11px] text-[#8a95a7]">{person.email}</p></div><span className="hidden text-xs text-[#657187] sm:inline">{person.department}</span><button type="button" aria-label={`ลบ ${person.name}`} onClick={() => setParticipants((current) => current.filter((item) => item.id !== person.id))} className="p-1.5 text-[#9aa4b4] hover:text-red-500"><Trash2 className="h-4 w-4" /></button></div>)}
-            {!participants.length && <p className="px-3 py-4 text-sm text-[#7d899b]">ยังไม่มีผู้เข้าร่วม</p>}
-          </div>
-        </div>
+        <SectionHeading step="2" title="ลงชื่อผู้เข้าร่วมด้วย QR Code" description="ระบบจะสร้าง QR Code หลังจากบันทึกการประชุม" />
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6"><span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-[#edf3ff] text-[#2d63ba]"><QrCode className="h-8 w-8" /></span><div><h3 className="font-bold text-[#30405b]">ไม่ต้องพิมพ์รายชื่อผู้เข้าร่วมล่วงหน้า</h3><p className="mt-1 text-sm leading-6 text-[#748197]">เมื่อบันทึกแล้ว ให้นำ QR Code ในหน้าการประชุมไปแสดง ผู้เข้าร่วมกรอกชื่อ ตำแหน่ง และหน่วยงานด้วยตนเอง รายชื่อจะเข้าในรายงาน PDF อัตโนมัติ</p></div></div>
       </section>
 
       <section className="rounded-xl border border-[#dfe5ef] bg-white">
@@ -103,7 +75,7 @@ export function MeetingCreateForm({ departments, members }: { departments: Depar
     <aside className="space-y-4">
       <div className="sticky top-24 rounded-xl border border-[#d8e2f3] bg-white p-5 shadow-sm">
         <h2 className="font-bold text-[#29364c]">ตรวจสอบก่อนบันทึก</h2>
-        <div className="mt-4 space-y-3"><CheckRow text="ข้อมูลการประชุม" /><CheckRow text={`ผู้เข้าร่วม ${participants.length} คน`} /><CheckRow text={`ระเบียบวาระ ${agendas.filter(Boolean).length} หัวข้อ`} /></div>
+        <div className="mt-4 space-y-3"><CheckRow text="ข้อมูลการประชุม" /><CheckRow text="สร้าง QR ลงชื่ออัตโนมัติ" /><CheckRow text={`ระเบียบวาระ ${agendas.filter(Boolean).length} หัวข้อ`} /></div>
         {formError && <p className="mt-4 rounded-lg bg-[#fff0eb] px-3 py-2 text-sm font-semibold text-[#b84a24]">{formError}</p>}
         <div className="mt-5 border-t border-[#e7ebf1] pt-5"><Button type="submit" className="w-full" disabled={isPending}>{isPending ? "กำลังบันทึก..." : "บันทึกการประชุม"}</Button><Button type="button" variant="ghost" className="mt-2 w-full" onClick={() => router.back()}><ChevronLeft className="h-4 w-4" />ยกเลิกและย้อนกลับ</Button></div>
       </div>

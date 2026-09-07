@@ -22,7 +22,7 @@ export function SharedReportContent({ report, printable = false }: { report: Sha
       <div className="space-y-10 px-6 py-8 sm:px-12 sm:py-10">
         <section>
           <Heading number="1" title="ผู้เข้าร่วมประชุม" />
-          {report.participants.length ? <ol className="mt-4 grid gap-x-8 gap-y-2 text-sm leading-6 text-[#46546b] sm:grid-cols-2">{report.participants.map((person, index) => <li key={`${person.name}-${index}`}>{index + 1}. {person.name}</li>)}</ol> : <p className="mt-4 text-sm text-[#7c8798]">ไม่ได้ระบุรายชื่อผู้เข้าร่วม</p>}
+          {report.participants.length ? <ol className="mt-4 grid gap-x-8 gap-y-2 text-sm leading-6 text-[#46546b] sm:grid-cols-2">{report.participants.map((person, index) => <li key={`${person.name}-${index}`}>{index + 1}. {person.name}{person.label && <span className="ml-2 text-xs text-[#7d899b]">{person.label}</span>}</li>)}</ol> : <p className="mt-4 text-sm text-[#7c8798]">ไม่ได้ระบุรายชื่อผู้เข้าร่วม</p>}
         </section>
 
         <section>
@@ -55,4 +55,3 @@ function Heading({ number, title }: { number: string; title: string }) {
 function Signature({ name, title }: { name: string; title: string }) {
   return <div className="break-inside-avoid"><div className="h-14" /><div className="mx-auto max-w-[260px] border-t border-[#8b93a0] pt-2"><p>({name})</p><p className="mt-1 text-xs text-[#68758a]">{title}</p></div></div>;
 }
-

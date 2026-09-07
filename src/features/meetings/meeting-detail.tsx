@@ -5,14 +5,16 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Copy, Download, Eye, FilePenLine, FileText, Link2, ListChecks, MapPin, Paperclip, Pencil, ShieldCheck, Upload, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, ChevronRight, Clock3, Copy, Download, Eye, FilePenLine, FileText, Link2, ListChecks, MapPin, Paperclip, Pencil, ShieldCheck, Trash2, Upload, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/status-badge";
 import { ReportEditorDialog } from "@/components/report-editor-dialog";
 import { AgendaManager } from "@/features/meetings/agenda-manager";
 import { MeetingWorkflowControl } from "@/features/meetings/meeting-workflow-control";
+import { AttendanceQrPanel } from "@/features/meetings/attendance-qr-panel";
 import { addParticipantAction, createShareLinkAction, getDocumentDownloadUrlAction, getDocumentViewUrlAction, grantDocumentPermissionAction, saveReportAction, uploadDocumentAction } from "@/app/actions/meetings";
+import { removeMeetingAttendanceAction } from "@/app/actions/attendance";
 import { cn } from "@/lib/utils";
 import type { AppRole, MeetingDetailView, MemberOption } from "@/lib/meetflow-data";
 
@@ -58,18 +60,33 @@ function Overview({ detail, onTab, onEdit, canEdit, canManage, notify }: { detai
 }
 
 function Participants({ detail, members, notify, canManage }: { detail: MeetingDetailView; members: MemberOption[]; notify: (message: string) => void; canManage: boolean }) {
+  const router = useRouter();
   const [userId, setUserId] = useState("");
   const [isPending, startTransition] = useTransition();
   const available = members.filter((member) => !detail.participants.some((participant) => participant.id === member.id));
+  const qrCount = detail.participants.filter((person) => person.registrationSource === "qr").length;
   const add = () => {
     if (!userId) return notify("กรุณาเลือกผู้เข้าร่วม");
     startTransition(async () => {
       const result = await addParticipantAction(detail.id, userId);
       if (!result.ok) return notify(result.error);
       notify("เพิ่มผู้เข้าร่วมแล้ว");
+      setUserId("");
+      router.refresh();
     });
   };
-  return <Panel title="ผู้เข้าร่วมประชุม" description={`${detail.participants.length} คน`} action={canManage ? "เพิ่มผู้เข้าร่วม" : undefined} onAction={add}>{canManage && <div className="border-b border-[#e7ebf1] px-5 py-4 sm:px-6"><div className="flex gap-2"><select value={userId} onChange={(event) => setUserId(event.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-[#d9e0ea] px-3 text-sm"><option value="">เลือกผู้ใช้งานในองค์กร</option>{available.map((member) => <option key={member.id} value={member.id}>{member.name} ({member.email})</option>)}</select><Button type="button" onClick={add} disabled={isPending}>เพิ่ม</Button></div></div>}<div className="divide-y divide-[#e8ecf2]">{detail.participants.map((person) => <div key={person.id} className="flex items-center gap-3 px-5 py-4 sm:px-6"><span className="grid h-9 w-9 place-items-center rounded-full bg-[#e2ebfc] text-[10px] font-bold text-[#315f9f]">{person.initials}</span><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[#334057]">{person.name}</p><p className="truncate text-xs text-[#8b95a6]">{person.email} · {person.department}</p></div><span className="hidden rounded-full bg-[#f0f3f7] px-2.5 py-1 text-[10px] font-bold text-[#657187] sm:inline">{person.meetingRole === "chair" ? "ประธาน" : person.meetingRole === "reporter" ? "ผู้จดรายงาน" : "ผู้เข้าร่วม"}</span><span className="text-xs font-semibold text-[#2c7a61]">{attendanceLabel(person.attendanceStatus)}</span></div>)}</div></Panel>;
+  const removeQrParticipant = (registrationId: string) => startTransition(async () => {
+    const result = await removeMeetingAttendanceAction(detail.id, registrationId);
+    if (!result.ok) return notify(result.error);
+    notify("ลบรายชื่อแล้ว");
+    router.refresh();
+  });
+
+  return <Panel title="ผู้เข้าร่วมประชุม" description={`${detail.participants.length} คน`}>
+    {canManage && <AttendanceQrPanel meetingId={detail.id} meetingTitle={detail.title} registeredCount={qrCount} notify={notify} />}
+    {canManage && <div className="border-b border-[#e7ebf1] px-5 py-4 sm:px-6"><p className="mb-2 text-xs font-semibold text-[#78859a]">เพิ่มผู้ใช้งานภายในองค์กร (ถ้าต้องการกำหนดไว้ล่วงหน้า)</p><div className="flex gap-2"><select value={userId} onChange={(event) => setUserId(event.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-[#d9e0ea] px-3 text-sm"><option value="">เลือกผู้ใช้งานในองค์กร</option>{available.map((member) => <option key={member.id} value={member.id}>{member.name} ({member.email})</option>)}</select><Button type="button" onClick={add} disabled={isPending}>เพิ่ม</Button></div></div>}
+    <div className="divide-y divide-[#e8ecf2]">{detail.participants.map((person) => <div key={person.id} className="flex items-center gap-3 px-5 py-4 sm:px-6"><span className="grid h-9 w-9 place-items-center rounded-full bg-[#e2ebfc] text-[10px] font-bold text-[#315f9f]">{person.initials}</span><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-[#334057]">{person.name}</p><p className="truncate text-xs text-[#8b95a6]">{person.registrationSource === "qr" ? `${person.positionTitle}${person.department ? ` · ${person.department}` : ""}` : `${person.email} · ${person.department}`}</p>{person.registrationSource === "qr" && person.checkedInAt && <p className="mt-1 text-[11px] text-[#9aa4b3]">ลงชื่อเมื่อ {person.checkedInAt}</p>}</div><span className="hidden rounded-full bg-[#f0f3f7] px-2.5 py-1 text-[10px] font-bold text-[#657187] sm:inline">{person.registrationSource === "qr" ? "ลงชื่อผ่าน QR" : person.meetingRole === "chair" ? "ประธาน" : person.meetingRole === "reporter" ? "ผู้จดรายงาน" : "ผู้เข้าร่วม"}</span><span className="text-xs font-semibold text-[#2c7a61]">{attendanceLabel(person.attendanceStatus)}</span>{canManage && person.registrationSource === "qr" && <button type="button" onClick={() => removeQrParticipant(person.id)} disabled={isPending} aria-label={`ลบ ${person.name}`} className="rounded-md p-2 text-[#9aa4b4] hover:bg-red-50 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>}</div>)}{!detail.participants.length && <Empty text="ยังไม่มีผู้ลงชื่อเข้าร่วม" />}</div>
+  </Panel>;
 }
 
 function Documents({ detail, notify, canManage }: { detail: MeetingDetailView; notify: (message: string) => void; canManage: boolean }) {
